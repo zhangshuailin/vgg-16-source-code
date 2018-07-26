@@ -1,0 +1,123 @@
+from ... import input_data
+input_data=data_read()
+import tensorflow as tf
+
+def conv(name,x,w,b):
+    return tf.nn.relu(tf.nn.bias_add(tf.nn.conv2d(x,w,strides=[1,1,1,1],padding='SAME'),b),name=name)
+
+def max_pool(name,x,k):
+    return tf.nn.max_pool(x,ksize=[1,k,k,1],strides=[1,k,k,1],padding='SAME',name=name)
+
+def fc(name,x,w,b):
+    return tf.nn.relu(tf.matmul(x,w)+b,name=name)
+
+def vgg_net(_X,_weights,_biases,keep_prob):
+        x_shape=_X.get_shape()
+    _X=tf.reshape(_X,shape=[-1,X_shape[1].value,x_shape[2].value,x_shape[3].value])
+
+    conv1_1=conv('conv1_1',_X,_weights['wc1_1'],_biases['bc1_1'])
+    conv1_2=conv('conv1_2',conv1_1,_weights['wc1_2'],_biases['bc1_2'])
+    pool1=max_pool('pool1',conv1_2,k=2)
+
+    conv2_1=conv('conv2_1',pool1,_weights['wc2_1'],_biases['bc2_1'])
+    conv2_2=conv('conv2_2',conv2_1,_weights['wc2_2'],_biases['bc2_2'])
+    pool2=max_pool('pool2',conv2_2,k=2)
+
+    conv3_1=conv('conv3_1',pool2,_weights['wc3_1'],_biases['bc3_1'])
+    conv3_2=conv('conv3_2',conv3_1,_weights['wc3_2'],_biases['bc3_2'])
+    conv3_3=conv('conv3_3',conv3_2,_weights['wc3_3'],_biases['bc3_3'])
+    pool3=max_pool('pool3',conv3_3,k=2)
+
+    conv4_1=conv('conv4_1',pool3,_weights['wc4_1'],_biases['bc4_1'])
+    conv4_2=conv('conv4_2',conv4_1,_weights['wc4_2'],_biases['bc4_2'])
+    conv4_3=conv('conv4_3',conv4_2,_weights['wc4_3'],_biases['bc4_3'])
+    pool4=max_pool('pool4',conv4_3,k=2)
+
+    conv5_1=conv('conv5_1',pool4,_weights['wc5_1'],_biases['bc5_1'])
+    conv5_2=conv('conv5_2',conv5_1,_weights['wc5_2'],_biases['bc5_2'])
+    conv5_3=conv('conv5_3',conv5_2,_weights['wc5_3'],_biases['bc5_3'])    
+    pool5=max_pool('pool5',conv5_3,k=2)
+
+    _shape=pool5.get_shape()
+    flatten=_shape[1].value*_shape[2].value*_shape[3].value
+    pool5=tf.reshape(pool5,shape=[-1,flatten])    
+    fc1=fc('fc1',pool5,_weights['fc1'],_biases['fb1'])
+    fc1=tf.nn.dropout(fc1,keep_prob)
+
+    fc2=fc('fc2',fc1,_weights['fc2'],_biases['fb2'])
+    fc2=tf.nn.dropout(fc2,keep_prob)
+
+    fc3=fc('fc3',fc2,_weights['fc3'],_biases['fb3'])
+    fc3=tf.nn.dropout(fc3,keep_prob)
+
+    out=tf.argmax(tf.nn.softmax(fc3),1)
+    
+    return out
+
+learning_rate=0.001
+max_iters=200000
+batch_size=100
+display_step=20
+
+n_input=224*224*3
+n_classes=1000
+dropout=0.8
+
+x=tf.placeholder(tf.float32,[None,n_input])
+y=tf.placeholder(tf.float32,[None,n_classes])
+keep_prob=tf.placeholder(tf.float32)
+
+weights={
+    'wc1_1':tf.Variable(tf.random_normal([3,3,3,64])),
+    'wc1_2':tf.Variable(tf.random_normal([3,3,64,64])),
+    'wc2_1':tf.Variable(tf.random_normal([3,3,64,128])),
+    'wc2_2':tf.Variable(tf.random_normal([3,3,128,128])),
+    'wc3_1':tf.Variable(tf.random_normal([3,3,128,256])),
+    'wc3_2':tf.Variable(tf.random_normal([3,3,256,256])),
+    'wc3_3':tf.Variable(tf.random_normal([3,3,256,256])),
+    'wc4_1':tf.Variable(tf.random_normal([3,3,256,512])),
+    'wc4_2':tf.Variable(tf.random_normal([3,3,512,512])),
+    'wc4_3':tf.Variable(tf.random_normal([3,3,512,512])),
+    'wc5_1':tf.Variable(tf.random_normal([3,3,512,512])),
+    'wc5_2':tf.Variable(tf.random_normal([3,3,512,512])),
+    'wc5_3':tf.Variable(tf.random_normal([3,3,512,512])),
+    'fc1':tf.Variable(tf.random_normal([7*7*512,4096])),
+    'fc2':tf.Variable(tf.random_normal([4096,4096])),
+    'fc3':tf.Variable(tf.random_normal([4096,n_classes]))
+}
+
+biases={
+    'bc1_1':tf.Variable(tf.random_normal([64])),
+    'bc1_2':tf.Variable(tf.random_normal([64])),
+    'bc2_1':tf.Variable(tf.random_normal([128])),
+    'bc2_2':tf.Variable(tf.random_normal([128])),
+    'bc3_1':tf.Variable(tf.random_normal([256])),
+    'bc3_2':tf.Variable(tf.random_normal([256])),
+    'bc3_3':tf.Variable(tf.random_normal([256])),
+    'bc4_1':tf.Variable(tf.random_normal([512])),
+    'bc4_2':tf.Variable(tf.random_normal([512])),
+    'bc4_3':tf.Variable(tf.random_normal([512])),
+    'bc5_1':tf.Variable(tf.random_normal([512])),
+    'bc5_2':tf.Variable(tf.random_normal([512])),
+    'bc5_3':tf.Variable(tf.random_normal([512]))
+}
+
+pred=vgg_net(x,weights,biases,keep_prob)
+
+cost=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred,y))
+optimizer=tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+
+correct=tf.equal(tf.argmax(pred,1),tf.argmax(y,1))
+accuracy=tf.reduce_mean(tf.cast(correct,float32))
+
+init=tf.initialize_all_variables()
+
+with tf.Session() as sess:
+    sess.run(init)
+    step=1
+
+    while step*batch_size<max_iters:
+        batch_xs,batch_ys=mnist.train.next_batch(batch_size)
+        sess.run(optimizer,feed_dict{x:batch_xs,y:batch_ys,keep_prob:dropout})
+
+    step+=1
